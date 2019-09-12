@@ -3,63 +3,67 @@
    hosts:  samba
    gather_facts:  no
    tasks:
-     - name:  install samba
+     - name:  install samba and samba-client
        yum:  
-         name:  samba
+         name:  "{{ item }}"
          state:  present
-    
-     - name:  install samba-client
-       yum:
-         name:  samba-client
-         state:  present
-    
+       with_items:
+         - samba
+         - samba-client
 
-     - name:  start smb service
-       service:
-        name:   smb
-        state:  started
-        enabled:  yes
 
-     - name:  start nmb service
+     - name:  start smb and nmb service
        service:
-        name:  nmb
-        state:  started
-        enabled:  yes
+         name:   "{{ item }}"
+         state:  started
+         enabled:  yes
+       with_items:
+         - smb
+         - nmb
+
 
      - name:  add user john
        user:
-        name:  john
-        shell:  /bin/bash
-        groups:  root
-        append:  yes
+         name:  john
+         shell:  /bin/bash
+         groups:  root
+         append:  yes
 
      - name:  assign samba password to john
        command: echo "123" | smbpasswd -a --stdin linuxuser  
         
      - name:  create directory /data
        file:
-        path: /data
-        state:  touch
-        owner:  root
-        group:  root
-        mode:  '0757' 
+         path: /data
+         state:  touch
+         owner:  root
+         group:  root
+         mode:  '0757' 
   
      - name:  change selinux context of /data
        sefcontext:
-        target:  /data
-        setype:  samba_share_t
-        state:  present  
+         target:  /data
+         setype:  samba_share_t
+         state:  present  
      
      - name:  set selinux context
        command:  restorecon -vvRF /data
 
      - name:  add samba share to /etc/samba/smb.conf
        lineinfile:
-        line:  "[smbshare]\n
+         line:  "[smbshare]\n
                 path=/data\n
                 valid users=john\n
                 browseable=yes\n
                 hosts allow= 172.25.1."     
-        path:  /etc/samba/smb.conf
+         path:  /etc/samba/smb.conf
+       notify: restart smb and nmb
 
-     
+   handlers:
+   - name: restart smb and nmb
+     service:
+       name: "{{ item }}"
+       state: restarted
+     with_items:
+       - smb
+       - nmb     
